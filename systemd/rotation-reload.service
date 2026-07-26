@@ -1,0 +1,36 @@
+# rotation-reload.service
+#
+# Re-issues the Infisical Universal Auth client secret for a running service,
+# writes it to the EnvironmentFile, then sends SIGHUP so the service's
+# installSighupReload() handler calls refreshSecrets() without a restart.
+#
+# Paired with rotation-reload.timer for fully automated secret rotation.
+#
+# Required env (deliver via systemd credentials or a separate admin env file):
+#   INFISICAL_ADMIN_CLIENT_ID      — terraform-admin identity client id
+#   INFISICAL_ADMIN_CLIENT_SECRET  — terraform-admin identity client secret
+#   ROTATION_IDENTITY_ID           — identity_id from `terraform output identities`
+#   ROTATION_PROJECT_ID            — project_id from `terraform output identities`
+#   ROTATION_SERVICE_NAME          — systemd service unit name (e.g. seo-bot)
+#   ROTATION_ENV_FILE              — path to the service's EnvironmentFile (e.g. /etc/seo-bot/infisical.env)
+#   INFISICAL_HOST                 — optional, defaults to https://app.infisical.com
+#
+# Install:
+#   cp rotation-reload.service /etc/systemd/system/
+#   systemctl daemon-reload
+#   systemctl enable --now rotation-reload.timer
+
+[Unit]
+Description=Infisical rotation reload (%n)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Load admin credentials — store in /etc/infisical-admin/rotation.env (chmod 600, root:root)
+EnvironmentFile=/etc/infisical-admin/rotation.env
+
+ExecStart=/usr/local/bin/infra-rotation-reload.sh
+
+# Do not kill the target service on script failure — fail safe
+SuccessExitStatus=0 1

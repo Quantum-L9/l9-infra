@@ -1,0 +1,29 @@
+# rotation-reload.timer
+#
+# Fires rotation-reload.service every 25 days.
+# Infra provisions access_token_max_ttl = 30 days (2592000s).
+# 25-day interval guarantees the new secret is issued and loaded
+# before the 30-day TTL hard-expires, with a 5-day safety margin.
+#
+# Adjust OnCalendar if you shorten TTL in modules/infisical-service/main.tf.
+#
+# Install:
+#   cp rotation-reload.timer /etc/systemd/system/
+#   systemctl daemon-reload
+#   systemctl enable --now rotation-reload.timer
+
+[Unit]
+Description=Infisical secret rotation reload (every 25 days)
+Requires=rotation-reload.service
+
+[Timer]
+# First fire 25 days after boot, then every 25 days
+OnBootSec=25d
+OnUnitActiveSec=25d
+# Randomize by up to 1 hour to avoid thundering-herd across services
+RandomizedDelaySec=3600
+# Persist across reboots — fires immediately if last run was missed
+Persistent=true
+
+[Install]
+WantedBy=timers.target

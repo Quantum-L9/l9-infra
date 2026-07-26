@@ -23,6 +23,7 @@ resource "infisical_identity" "this" {
 # ── Universal Auth: how the runtime authenticates ─────────────────────────────
 # The client_id is created here; the client_secret is minted out-of-band by
 # scripts/issue-client-secret.sh so it never enters Terraform state.
+# access_token_max_ttl = 30d matches rotation-reload.timer OnUnitActiveSec=25d cadence.
 resource "infisical_identity_universal_auth" "this" {
   identity_id = infisical_identity.this.id
 
@@ -40,7 +41,7 @@ resource "infisical_identity_universal_auth" "this" {
     }
   }
 
-  access_token_ttl            = 2592000 # 30d
+  access_token_ttl            = 2592000 # 30d — matches rotation-reload.timer cadence
   access_token_max_ttl        = 2592000 # 30d
   access_token_num_uses_limit = 0       # unlimited
 }
@@ -56,9 +57,13 @@ resource "infisical_project_identity" "this" {
 }
 
 # ── Optional: import shared keys from platform-common ─────────────────────────
-# Enabled per-service via import_common. NOTE: confirm your pinned provider
-# version supports importing across projects (source = common_project_id). If it
-# doesn't, use secret references or duplicate the shared keys per project.
+# Enable per-service via import_common = true in services.tf after confirming
+# cross-project infisical_secret_import attribute names on your pinned provider
+# version (~> 0.15). Run `terraform plan` first — adjust any flagged attributes.
+#
+# When enabled, secrets in platform-common/<environment_slug>/ at folder_path "/"
+# become readable in this project's environment via Infisical secret references,
+# so OPENROUTER_API_KEY, PERPLEXITY_API_KEY, etc. are rotated in one place only.
 resource "infisical_secret_import" "common" {
   count = var.import_common ? 1 : 0
 
@@ -69,7 +74,10 @@ resource "infisical_secret_import" "common" {
   import_environment_slug = var.environment_slug
   import_folder_path      = "/"
 
-  # If your provider version keys the source project on a different attribute,
-  # adjust here (surfaced by `terraform plan`).
-  # source_project_id = var.common_project_id
+  # The attribute that names the source project differs between provider minor
+  # versions. If `terraform plan` flags this block, uncomment one of:
+  # source_project_id  = var.common_project_id   # older provider attribute name
+  # For provider >= 0.14 the import source is typically set via a separate
+  # infisical_secret_import_from block — check `terraform plan` output.
+  # See: https://registry.terraform.io/providers/Infisical/infisical/latest/docs
 }
